@@ -1,0 +1,7 @@
+services:
+  user-audit:
+    build: .
+    container_name: MicrosoftULI
+    volumes:
+      - ./cron.log:/app/cron.log
+    restart: unless-stopped
