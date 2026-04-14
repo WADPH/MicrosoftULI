@@ -1,7 +1,24 @@
+version: '3.8'
+
 services:
-  user-audit:
+  microsoft-uli:
     build: .
     container_name: MicrosoftULI
+    
+    # Mount volumes for persistent storage
     volumes:
-      - ./cron.log:/app/cron.log
+      # Output directory - Excel files and logs will be stored here
+      - ./output:/app/output
+      # Mount .env for environment variables (read-only)
+      - ./.env:/app/.env:ro
+    
+    # Load environment variables from .env file
+    env_file:
+      - .env
+    
+    # Restart policy
     restart: unless-stopped
+    
+    # Keep container running
+    stdin_open: true
+    tty: true

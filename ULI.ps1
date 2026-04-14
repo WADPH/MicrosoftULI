@@ -2,52 +2,32 @@
 # Объединенный скрипт: получение данных из нескольких Entra ID и загрузка в SharePoint
 
 # === КОНФИГУРАЦИЯ ===
+function Write-Log {
+    param([string]$Message, [string]$Level = "INFO")
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $logEntry = "[$timestamp] [$Level] $Message"
+    Write-Host $logEntry
+    if ($logFilePath) {
+        Add-Content -Path $logFilePath -Value $logEntry -ErrorAction SilentlyContinue
+    }
+}
+
 # Load environment variables from .env file
 if (Test-Path ".env") {
-    $envContent = Get-Content ".env" -Raw
-    
-    # Parse .env file with multiline JSON support
-    $lines = $envContent -split "\r?\n"
-    $currentKey = $null
-    $currentValue = @()
-    
-    foreach ($line in $lines) {
-        # Skip comments and empty lines
-        if ($line -match '^\s*#' -or $line -match '^\s*$') {
-            continue
-        }
-        
-        # Check if this is a new variable (key=value format at start of line)
-        if ($line -match '^([A-Z_][A-Z0-9_]*)\s*=') {
-            # Save previous variable if exists
-            if ($currentKey) {
-                $value = ($currentValue -join "`n").Trim()
-                [Environment]::SetEnvironmentVariable($currentKey, $value)
-            }
-            
-            # Extract key and start of value
+    Get-Content ".env" | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -and -not ($line -match '^\s*#')) {
             $parts = $line -split '=', 2
-            $currentKey = $parts[0].Trim()
-            if ($parts.Count -gt 1) {
-                $currentValue = @($parts[1].Trim())
-            } else {
-                $currentValue = @()
-            }
-        } else {
-            # Continue previous value (part of multiline JSON)
-            if ($currentKey) {
-                $currentValue += $line.Trim()
+            if ($parts.Count -eq 2) {
+                $key = $parts[0].Trim()
+                $value = $parts[1].Trim()
+                [Environment]::SetEnvironmentVariable($key, $value)
             }
         }
     }
-    
-    # Don't forget last variable
-    if ($currentKey) {
-        $value = ($currentValue -join "`n").Trim()
-        [Environment]::SetEnvironmentVariable($currentKey, $value)
-    }
+    Write-Log "Configuration loaded from: .env" "INFO"
 } else {
-    Write-Log "Warning: .env file not found. Using default or environment variables." "WARNING"
+    Write-Log "Warning: .env file not found. Using environment variables." "WARNING"
 }
 
 # Helper function to convert PSCustomObject to Hashtable
@@ -81,6 +61,19 @@ $config = ConvertTo-Hashtable -InputObject $configJson
 # Убеждаемся, что директория существует
 if (-not (Test-Path $config.OutputPath)) {
     New-Item -ItemType Directory -Path $config.OutputPath -Force
+}
+
+# Ensure Microsoft Graph module is available before using Connect-MgGraph
+try {
+    if (-not (Get-Module -ListAvailable -Name Microsoft.Graph)) {
+        Write-Log "Microsoft.Graph module is not installed. Install it with Install-Module Microsoft.Graph" "ERROR"
+        throw "Microsoft.Graph module required"
+    }
+    Import-Module Microsoft.Graph -ErrorAction Stop
+}
+catch {
+    Write-Host "ERROR: Failed to import Microsoft.Graph module: $($_.Exception.Message)"
+    throw
 }
 
 # Формируем полные пути
@@ -163,15 +156,6 @@ function Convert-LicenseName {
     } else {
         return $SkuName
     }
-}
-
-# === ФУНКЦИИ ЛОГИРОВАНИЯ ===
-function Write-Log {
-    param([string]$Message, [string]$Level = "INFO")
-    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    $logEntry = "[$timestamp] [$Level] $Message"
-    Write-Host $logEntry
-    Add-Content -Path $logFilePath -Value $logEntry -ErrorAction SilentlyContinue
 }
 
 # === ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ДАННЫХ ИЗ TENANT ===
