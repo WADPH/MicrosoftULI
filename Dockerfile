@@ -15,8 +15,8 @@ COPY .env .
 # Create output directory
 RUN mkdir -p /app/output
 
-# Create cron file - runs daily at 22:00
-RUN echo "0 22 * * * pwsh -File /app/ULI.ps1 >> /app/output/cron.log 2>&1" > /etc/crontabs/root
+# Create cron file - runs daily at 22:00 UTC (2:00 AM local time in UTC+4 timezone)
+RUN echo "0 2 * * * pwsh -File /app/ULI.ps1 >> /app/output/cron.log 2>&1" > /etc/crontabs/root
 
 # Run cron in foreground
 CMD ["crond", "-f", "-l", "8"]
